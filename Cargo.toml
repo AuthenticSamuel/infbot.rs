@@ -1,0 +1,11 @@
+[package]
+name = "infbot"
+version = "0.1.0"
+authors = ["Samuel Ward <contact@infernal.dev>"]
+edition = "2024"
+
+[dependencies]
+dotenv = "0.15.0"
+poise = "0.6.1"
+tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
+tracing-subscriber = "0.3.19"
