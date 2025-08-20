@@ -1,15 +1,17 @@
-mod commands;
-
 use std::{
-    env::var,
+    error::Error as StdError,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use dotenv::dotenv;
-use poise::serenity_prelude::{self as serenity, GuildId};
+use poise::serenity_prelude as serenity;
 
-type Error = Box<dyn std::error::Error + Send + Sync>;
+use crate::config::Config;
+
+mod commands;
+mod config;
+
+type Error = Box<dyn StdError + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 pub struct Data {
@@ -33,22 +35,17 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn StdError>> {
     tracing_subscriber::fmt::init();
 
-    dotenv().ok();
+    let cfg = Config::from_env()?;
 
     let options = poise::FrameworkOptions {
         commands: vec![commands::bot(), commands::help()],
         prefix_options: poise::PrefixFrameworkOptions {
-            prefix: Some("~".into()),
             edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
                 Duration::from_secs(3600),
             ))),
-            additional_prefixes: vec![
-                poise::Prefix::Literal("hey bot,"),
-                poise::Prefix::Literal("hey bot"),
-            ],
             ..Default::default()
         },
         on_error: |error| {
@@ -59,15 +56,6 @@ async fn main() {
                 println!("Executing command {}...", ctx.command().qualified_name);
             });
         },
-        command_check: Some(|ctx| {
-            return Box::pin(async move {
-                if ctx.author().id == 123456789 {
-                    return Ok(false);
-                }
-                return Ok(true);
-            });
-        }),
-        skip_checks_for_owners: false,
         event_handler: |_ctx, event, _framework, _data| {
             return Box::pin(async move {
                 println!(
@@ -85,12 +73,13 @@ async fn main() {
             return Box::pin(async move {
                 println!("Logged in as {}", ready.user.name);
 
-                poise::builtins::register_in_guild(
-                    ctx,
-                    &framework.options().commands,
-                    GuildId::new(756866684106833980),
-                )
-                .await?;
+                if let Some(id) = cfg.discord_register_guild {
+                    let gid = serenity::model::id::GuildId::new(id);
+                    poise::builtins::register_in_guild(ctx, &framework.options().commands, gid)
+                        .await?;
+                } else {
+                    poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+                }
 
                 let started_at_unix = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -107,13 +96,14 @@ async fn main() {
         .options(options)
         .build();
 
-    let token = var("DISCORD_TOKEN").expect("Missing `DISCORD_TOKEN` environment variable.");
     let intents =
         serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
 
-    let client = serenity::ClientBuilder::new(token, intents)
+    let mut client = serenity::ClientBuilder::new(cfg.discord_bot_token.clone(), intents)
         .framework(framework)
-        .await;
+        .await?;
 
-    return client.unwrap().start().await.unwrap();
+    client.start().await?;
+
+    return Ok(());
 }
