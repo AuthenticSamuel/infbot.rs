@@ -46,8 +46,7 @@ pub async fn server(ctx: Context<'_>) -> Result<(), Error> {
             ("Created", created_at, false),
             ("Created by", owner, false),
         ])
-        .colour(serenity::Colour::new(0x818CF8))
-        .timestamp(serenity::Timestamp::now());
+        .colour(serenity::Colour::new(0x818CF8));
 
     let reply = poise::CreateReply::default().embed(embed);
 

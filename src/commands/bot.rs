@@ -55,8 +55,7 @@ pub async fn bot(ctx: Context<'_>) -> Result<(), Error> {
                 false,
             ),
         ])
-        .colour(serenity::Colour::new(0x818CF8))
-        .timestamp(serenity::model::Timestamp::now());
+        .colour(serenity::Colour::new(0x818CF8));
 
     let reply = poise::CreateReply::default().embed(embed);
 
