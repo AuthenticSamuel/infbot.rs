@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn StdError>> {
     let cfg = Config::from_env()?;
 
     let options = poise::FrameworkOptions {
-        commands: vec![commands::bot(), commands::help()],
+        commands: vec![commands::bot(), commands::help(), commands::server()],
         prefix_options: poise::PrefixFrameworkOptions {
             edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
                 Duration::from_secs(3600),
