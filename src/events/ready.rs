@@ -1,12 +1,17 @@
+use crate::{Data, analytics};
 use poise::serenity_prelude as serenity;
 use serenity::ActivityData;
 use std::time::Duration;
 use tokio::time::sleep;
 
-pub async fn execute(ctx: &serenity::Context, ready: &serenity::Ready) {
+pub async fn execute(ctx: &serenity::Context, data: &Data, ready: &serenity::Ready) {
     println!("Logged in as {}", ready.user.name);
 
     start_status_loop(ctx.clone(), ready).await;
+
+    if let Some(client) = &data.posthog_client {
+        analytics::posthog::capture_event(client, "bot_logged_in", "infbot").await;
+    }
 }
 
 async fn start_status_loop(ctx: serenity::Context, ready: &serenity::Ready) {

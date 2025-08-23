@@ -1,4 +1,4 @@
-use crate::{ApplicationContext, Context, Error};
+use crate::{ApplicationContext, Context, Error, analytics};
 use poise::{Modal, serenity_prelude as serenity};
 use serenity::builder::CreateChannel;
 use serenity::model::channel::ChannelType;
@@ -61,6 +61,16 @@ pub async fn install(ctx: ApplicationContext<'_>) -> Result<(), Error> {
     )
     .execute(pool)
     .await?;
+
+    if let Some(client) = &ctx.data().posthog_client {
+        analytics::posthog::capture_event_with_props(
+            client,
+            "auto_voice_channels_module_installed",
+            &guild_id.to_string(),
+            vec![("channel_id", serde_json::json!(channel_id))],
+        )
+        .await;
+    }
 
     return Ok(());
 }

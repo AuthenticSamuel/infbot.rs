@@ -1,5 +1,6 @@
 use dotenvy::dotenv;
 use poise::serenity_prelude as serenity;
+use posthog_rs;
 use std::{
     env,
     error::Error as StdError,
@@ -7,9 +8,11 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+mod analytics;
 mod commands;
 mod database;
 mod events;
+mod framework_events;
 mod modules;
 
 type ApplicationContext<'a> = poise::ApplicationContext<'a, Data, Error>;
@@ -18,24 +21,9 @@ type Error = Box<dyn StdError + Send + Sync>;
 
 pub struct Data {
     pub db: sqlx::SqlitePool,
+    pub posthog_client: Option<posthog_rs::Client>,
     pub started_at_unix: i64,
     pub started_instant: Instant,
-}
-
-async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
-    match error {
-        poise::FrameworkError::Setup { error, .. } => {
-            panic!("Failed to start bot: {:?}", error)
-        }
-        poise::FrameworkError::Command { error, ctx, .. } => {
-            println!("Error in command `{}`: {:?}", ctx.command().name, error);
-        }
-        error => {
-            if let Err(e) = poise::builtins::on_error(error).await {
-                println!("Error while handling error: {}", e);
-            }
-        }
-    }
 }
 
 #[tokio::main]
@@ -53,12 +41,10 @@ async fn main() -> Result<(), Box<dyn StdError>> {
             ..Default::default()
         },
         on_error: |error| {
-            return Box::pin(on_error(error));
+            return Box::pin(framework_events::error::handler(error));
         },
         pre_command: |ctx| {
-            return Box::pin(async move {
-                println!("Executing command {}...", ctx.command().qualified_name);
-            });
+            return Box::pin(framework_events::pre_command::handler(ctx));
         },
         event_handler: |ctx, event, framework, data| {
             return Box::pin(events::handler(ctx, event, framework, data));
@@ -94,8 +80,11 @@ async fn main() -> Result<(), Box<dyn StdError>> {
                     .unwrap()
                     .as_secs() as i64;
 
+                let posthog_client = analytics::posthog::init_client().await;
+
                 return Ok(Data {
                     db,
+                    posthog_client,
                     started_at_unix,
                     started_instant: Instant::now(),
                 });

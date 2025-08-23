@@ -8,6 +8,8 @@ edition = "2024"
 dotenvy = "0.15.7"
 futures = "0.3.31"
 poise = "0.6.1"
+posthog-rs = "0.3.7"
+serde_json = "1.0.143"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "macros", "chrono"] }
 tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
 tracing-subscriber = "0.3.19"

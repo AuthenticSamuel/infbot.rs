@@ -1,5 +1,5 @@
-use crate::Data;
 use crate::database::{auto_voice_channels, auto_voice_channels_installations};
+use crate::{Data, analytics};
 use poise::serenity_prelude as serenity;
 use serenity::builder::CreateChannel;
 use serenity::model::channel::ChannelType;
@@ -86,7 +86,7 @@ async fn create_auto_voice_channel(
         }
     };
 
-    match member.move_to_voice_channel(ctx, &created_channel).await {
+    let _ = match member.move_to_voice_channel(ctx, &created_channel).await {
         Ok(_) => {
             auto_voice_channels::create(
                 &data.db,
@@ -96,13 +96,21 @@ async fn create_auto_voice_channel(
                 &member.user.id,
             )
             .await;
-            return;
         }
         Err(err) => {
             eprintln!("Failed to move member to auto voice channel: {err}");
-            return;
         }
     };
+
+    if let Some(client) = &data.posthog_client {
+        analytics::posthog::capture_event_with_props(
+            client,
+            "auto_voice_channel_created",
+            &guild_id.to_string(),
+            vec![("installation_channel_id", serde_json::json!(channel_id))],
+        )
+        .await;
+    }
 }
 
 async fn delete_auto_voice_channel(
@@ -150,4 +158,13 @@ async fn delete_auto_voice_channel(
         }
     };
     auto_voice_channels::delete(&data.db, &channel_id).await;
+
+    if let Some(client) = &data.posthog_client {
+        analytics::posthog::capture_event(
+            client,
+            "auto_voice_channel_deleted",
+            &channel.guild_id.to_string(),
+        )
+        .await;
+    }
 }
