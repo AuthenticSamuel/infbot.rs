@@ -12,7 +12,9 @@ pub async fn handler(
     data: &Data,
 ) -> Result<(), Error> {
     match event {
-        serenity::FullEvent::Ready { data_about_bot, .. } => ready::execute(data_about_bot),
+        serenity::FullEvent::Ready { data_about_bot, .. } => {
+            ready::execute(ctx, data_about_bot).await
+        }
         serenity::FullEvent::ChannelDelete { channel, .. } => {
             channel_delete::execute(data, channel).await
         }
