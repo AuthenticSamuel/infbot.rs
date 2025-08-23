@@ -1,9 +1,8 @@
+use crate::{Context, Error};
 use poise::serenity_prelude as serenity;
 
-use crate::{Context, Error};
-
 /// Get useful server information
-#[poise::command(guild_only, slash_command)]
+#[poise::command(slash_command, guild_only)]
 pub async fn server(ctx: Context<'_>) -> Result<(), Error> {
     let gid = ctx.guild_id().expect("guild_only ensures a guild context");
 

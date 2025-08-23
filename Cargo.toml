@@ -5,6 +5,9 @@ authors = ["Samuel Ward <contact@infernal.dev>"]
 edition = "2024"
 
 [dependencies]
+dotenvy = "0.15.7"
+futures = "0.3.31"
 poise = "0.6.1"
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "macros", "chrono"] }
 tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
 tracing-subscriber = "0.3.19"

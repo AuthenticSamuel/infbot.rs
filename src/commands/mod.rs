@@ -1,7 +1,10 @@
-mod bot;
-mod help;
-mod server;
+use crate::{Data, Error};
 
-pub use bot::bot;
-pub use help::help;
-pub use server::server;
+pub mod bot;
+pub mod help;
+pub mod module;
+pub mod server;
+
+pub fn all() -> Vec<poise::Command<Data, Error>> {
+    return vec![bot::bot(), help::help(), module::module(), server::server()];
+}
