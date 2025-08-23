@@ -85,6 +85,10 @@ async fn main() -> Result<(), Box<dyn StdError>> {
                 let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
                 let db = sqlx::SqlitePool::connect(&database_url).await?;
 
+                sqlx::query!("PRAGMA foreign_keys = ON;")
+                    .execute(&db)
+                    .await?;
+
                 let started_at_unix = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()

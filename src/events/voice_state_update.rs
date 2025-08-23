@@ -88,8 +88,14 @@ async fn create_auto_voice_channel(
 
     match member.move_to_voice_channel(ctx, &created_channel).await {
         Ok(_) => {
-            auto_voice_channels::create(&data.db, &created_channel.id, &guild_id, &member.user.id)
-                .await;
+            auto_voice_channels::create(
+                &data.db,
+                &channel_id,
+                &created_channel.id,
+                &guild_id,
+                &member.user.id,
+            )
+            .await;
             return;
         }
         Err(err) => {

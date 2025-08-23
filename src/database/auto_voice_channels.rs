@@ -2,16 +2,19 @@ use poise::serenity_prelude as serenity;
 
 pub async fn create(
     db: &sqlx::SqlitePool,
+    installation_channel_id: &serenity::ChannelId,
     channel_id: &serenity::ChannelId,
     guild_id: &serenity::GuildId,
     user_id: &serenity::UserId,
 ) {
+    let installation_channel_id = installation_channel_id.get() as i64;
     let channel_id = channel_id.get() as i64;
     let guild_id = guild_id.get() as i64;
     let user_id = user_id.get() as i64;
 
     return match sqlx::query!(
-        "INSERT OR IGNORE INTO auto_voice_channels (channel_id, guild_id, created_by) VALUES (?,?,?)",
+        "INSERT OR IGNORE INTO auto_voice_channels (installation_channel_id, channel_id, guild_id, created_by) VALUES (?,?,?,?)",
+        installation_channel_id,
         channel_id,
         guild_id,
         user_id,
