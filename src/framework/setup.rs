@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     env,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -6,7 +7,9 @@ use std::{
 
 use poise::serenity_prelude as serenity;
 
-use crate::{Context, Data, Error, analytics, commands, events};
+use crate::{
+    Context, Data, Error, analytics, commands, database::auto_voice_channels_installations, events,
+};
 
 pub async fn init() -> poise::Framework<Data, Error> {
     let options = create_options().await;
@@ -41,11 +44,14 @@ pub async fn init() -> poise::Framework<Data, Error> {
 
                 let posthog_client = analytics::posthog::init_client().await;
 
+                let installation_channel_ids = load_installation_channels(&db).await;
+
                 return Ok(Data {
                     db,
                     posthog_client,
                     started_at_unix,
                     started_instant: Instant::now(),
+                    installation_channel_ids: tokio::sync::RwLock::new(installation_channel_ids),
                 });
             });
         })
@@ -119,4 +125,12 @@ pub async fn pre_command(ctx: Context<'_>) {
         .await;
     }
     println!("Executing command {}...", ctx.command().qualified_name);
+}
+
+async fn load_installation_channels(db: &sqlx::SqlitePool) -> HashSet<u64> {
+    let installations = auto_voice_channels_installations::select_all(db).await;
+    return installations
+        .into_iter()
+        .map(|installation| installation.channel_id as u64)
+        .collect();
 }

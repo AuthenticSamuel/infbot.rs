@@ -1,7 +1,8 @@
 use dotenvy::dotenv;
 use poise::serenity_prelude as serenity;
 use posthog_rs;
-use std::{env, error::Error as StdError, time::Instant};
+use std::{collections::HashSet, env, error::Error as StdError, time::Instant};
+use tokio::sync::RwLock;
 
 mod analytics;
 mod commands;
@@ -9,6 +10,7 @@ mod database;
 mod events;
 mod framework;
 mod modules;
+mod types;
 
 type ApplicationContext<'a> = poise::ApplicationContext<'a, Data, Error>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -19,6 +21,7 @@ pub struct Data {
     pub posthog_client: Option<posthog_rs::Client>,
     pub started_at_unix: i64,
     pub started_instant: Instant,
+    pub installation_channel_ids: RwLock<HashSet<u64>>,
 }
 
 #[tokio::main]

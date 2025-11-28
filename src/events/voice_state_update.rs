@@ -1,8 +1,9 @@
-use crate::database::{auto_voice_channels, auto_voice_channels_installations};
+use crate::database::auto_voice_channels;
 use crate::{Data, analytics};
 use poise::serenity_prelude as serenity;
 use serenity::builder::CreateChannel;
 use serenity::model::channel::ChannelType;
+use tokio::join;
 
 pub async fn execute(
     ctx: &serenity::Context,
@@ -19,8 +20,15 @@ pub async fn execute(
     }
 
     if let Some(new_channel_id) = new_channel_id {
-        if auto_voice_channels_installations::exists(pool, &new_channel_id).await {
-            create_auto_voice_channel(ctx, data, new_voice_state).await;
+        let new_id_u64 = new_channel_id.get();
+
+        let in_cache = {
+            let cache = data.installation_channel_ids.read().await;
+            cache.contains(&new_id_u64)
+        };
+
+        if in_cache {
+            create_auto_voice_channel(ctx, data, new_voice_state).await
         }
     }
 
@@ -42,7 +50,7 @@ async fn create_auto_voice_channel(
     data: &Data,
     new_voice_state: &serenity::VoiceState,
 ) {
-    let channel_id = match new_voice_state.channel_id {
+    let installation_channel_id = match new_voice_state.channel_id {
         Some(id) => id,
         None => return,
     };
@@ -57,19 +65,19 @@ async fn create_auto_voice_channel(
         None => return,
     };
 
-    let channel = match channel_id.to_channel(&ctx).await {
+    let guild_channel = match installation_channel_id.to_channel(&ctx).await {
         Ok(c) => c.guild(),
         Err(err) => {
-            eprintln!("Could not fetch category: {err}");
+            eprintln!("Could not fetch channel: {err}");
             return;
         }
     };
 
-    let Some(channel) = channel else {
+    let Some(guild_channel) = guild_channel else {
         return;
     };
 
-    let category = match channel.parent_id {
+    let category = match guild_channel.parent_id {
         Some(id) => id,
         None => return,
     };
@@ -86,31 +94,41 @@ async fn create_auto_voice_channel(
         }
     };
 
-    let _ = match member.move_to_voice_channel(ctx, &created_channel).await {
-        Ok(_) => {
-            auto_voice_channels::create(
-                &data.db,
-                &channel_id,
-                &created_channel.id,
-                &guild_id,
-                &member.user.id,
+    if let Err(err) = member.move_to_voice_channel(ctx, &created_channel).await {
+        eprintln!("Failed to move member to auto voice channel: {err}");
+    };
+
+    let db = data.db.clone();
+    let guild_id_str = guild_id.to_string();
+    let created_channel_id = created_channel.id;
+
+    let db_future = async move {
+        auto_voice_channels::create(
+            &db,
+            &installation_channel_id,
+            &created_channel_id,
+            &guild_id,
+            &member.user.id,
+        )
+        .await;
+    };
+
+    let analytics_future = async move {
+        if let Some(client) = &data.posthog_client {
+            analytics::posthog::capture_event_with_props(
+                client,
+                "auto_voice_channel_created",
+                &guild_id_str,
+                vec![(
+                    "installation_channel_id",
+                    serde_json::json!(installation_channel_id),
+                )],
             )
             .await;
         }
-        Err(err) => {
-            eprintln!("Failed to move member to auto voice channel: {err}");
-        }
     };
 
-    if let Some(client) = &data.posthog_client {
-        analytics::posthog::capture_event_with_props(
-            client,
-            "auto_voice_channel_created",
-            &guild_id.to_string(),
-            vec![("installation_channel_id", serde_json::json!(channel_id))],
-        )
-        .await;
-    }
+    join!(db_future, analytics_future);
 }
 
 async fn delete_auto_voice_channel(
@@ -122,10 +140,6 @@ async fn delete_auto_voice_channel(
         Some(id) => id,
         None => return,
     };
-
-    if !auto_voice_channels::exists(&data.db, &channel_id).await {
-        return;
-    }
 
     let channel = match channel_id.to_channel(ctx).await {
         Ok(c) => c.guild(),
@@ -147,17 +161,15 @@ async fn delete_auto_voice_channel(
         }
     };
 
-    if members.len() > 0 {
+    if !members.is_empty() {
         return;
     }
 
-    match channel.delete(ctx).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("Discord error: {err}");
-        }
+    if let Err(err) = channel.delete(ctx).await {
+        eprintln!("Discord error: {err}");
     };
-    auto_voice_channels::delete(&data.db, &channel_id).await;
+
+    auto_voice_channels::delete_by_channel_id(&data.db, &channel_id).await;
 
     if let Some(client) = &data.posthog_client {
         analytics::posthog::capture_event(
