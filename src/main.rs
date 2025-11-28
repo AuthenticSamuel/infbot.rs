@@ -11,6 +11,7 @@ mod events;
 mod framework;
 mod modules;
 mod types;
+mod utils;
 
 type ApplicationContext<'a> = poise::ApplicationContext<'a, Data, Error>;
 type Context<'a> = poise::Context<'a, Data, Error>;

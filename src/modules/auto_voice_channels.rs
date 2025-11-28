@@ -217,5 +217,20 @@ pub async fn uninstall(ctx: Context<'_>, installation_channel_id: String) -> Res
         )
         .await?;
 
+    if let Some(client) = &ctx.data().posthog_client {
+        let guild_id = match ctx.guild_id() {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+
+        analytics::posthog::capture_event_with_props(
+            client,
+            "auto_voice_channels_module_uninstalled",
+            &guild_id.to_string(),
+            vec![("channel_id", serde_json::json!(&installation_channel_id))],
+        )
+        .await;
+    }
+
     return Ok(());
 }

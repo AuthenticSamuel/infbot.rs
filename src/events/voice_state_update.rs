@@ -1,6 +1,8 @@
 use crate::database::auto_voice_channels;
 use crate::{Data, analytics};
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{
+    self as serenity, ChannelId, CreateActionRow, CreateButton, CreateEmbed, CreateMessage,
+};
 use serenity::builder::CreateChannel;
 use serenity::model::channel::ChannelType;
 use tokio::join;
@@ -102,6 +104,10 @@ async fn create_auto_voice_channel(
     let guild_id_str = guild_id.to_string();
     let created_channel_id = created_channel.id;
 
+    let control_panel_future = async move {
+        create_control_panel(&ctx, created_channel_id).await;
+    };
+
     let db_future = async move {
         auto_voice_channels::create(
             &db,
@@ -128,7 +134,7 @@ async fn create_auto_voice_channel(
         }
     };
 
-    join!(db_future, analytics_future);
+    join!(control_panel_future, db_future, analytics_future);
 }
 
 async fn delete_auto_voice_channel(
@@ -169,14 +175,55 @@ async fn delete_auto_voice_channel(
         eprintln!("Discord error: {err}");
     };
 
-    auto_voice_channels::delete_by_channel_id(&data.db, &channel_id).await;
+    let db_future =
+        async move { auto_voice_channels::delete_by_channel_id(&data.db, &channel_id).await };
 
-    if let Some(client) = &data.posthog_client {
-        analytics::posthog::capture_event(
-            client,
-            "auto_voice_channel_deleted",
-            &channel.guild_id.to_string(),
-        )
-        .await;
+    let analytics_future = async move {
+        if let Some(client) = &data.posthog_client {
+            analytics::posthog::capture_event(
+                client,
+                "auto_voice_channel_deleted",
+                &channel.guild_id.to_string(),
+            )
+            .await;
+        }
+    };
+
+    join!(db_future, analytics_future);
+}
+
+async fn create_control_panel(ctx: &serenity::Context, guild_channel_id: ChannelId) {
+    let guild_channel = match guild_channel_id.to_channel(ctx).await {
+        Ok(c) => c.guild(),
+        Err(err) => {
+            eprintln!("Discord error: {err}");
+            return;
+        }
+    };
+
+    let Some(guild_channel) = guild_channel else {
+        return;
+    };
+
+    let embed = CreateEmbed::new()
+        .title("Channel Control Panel")
+        .description("Manage this auto voice channel");
+
+    let row = CreateActionRow::Buttons(vec![
+        CreateButton::new("avc_lock_toggle")
+            .label("Lock / Unlock")
+            .style(serenity::ButtonStyle::Primary),
+        CreateButton::new("avc_bitrate_prompt")
+            .label("Set Bitrate")
+            .style(serenity::ButtonStyle::Secondary),
+        CreateButton::new("avc_userlimit_prompt")
+            .label("Set User Limit")
+            .style(serenity::ButtonStyle::Secondary),
+    ]);
+
+    let builder = CreateMessage::new().embed(embed).components(vec![row]);
+
+    if let Err(err) = guild_channel.send_message(ctx, builder).await {
+        eprintln!("Discord error: {err}");
     }
 }
