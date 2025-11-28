@@ -1,7 +1,7 @@
 use poise::serenity_prelude as serenity;
 use serenity::model::guild::PremiumTier;
 
-pub fn allowed_bitrates_for_premier_tier(premium_tier: PremiumTier) -> Vec<u32> {
+pub fn allowed_bitrates_for_premium_tier(premium_tier: PremiumTier) -> Vec<u32> {
     let max = match premium_tier {
         PremiumTier::Tier3 => 384_000,
         PremiumTier::Tier2 => 256_000,

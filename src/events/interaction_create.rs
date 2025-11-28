@@ -57,7 +57,7 @@ async fn handle_bitrate_prompt(ctx: &Context, component: &ComponentInteraction) 
     }
     .await;
 
-    let bitrates = utils::guild::allowed_bitrates_for_premier_tier(guild_premium_tier);
+    let bitrates = utils::guild::allowed_bitrates_for_premium_tier(guild_premium_tier);
 
     let options = bitrates
         .iter()
